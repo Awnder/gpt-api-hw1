@@ -1,5 +1,7 @@
 import streamlit as st
 from openai import OpenAI
+import signal
+import atexit
 
 st.title("💬 Shakespearian Chatbot")
 st.write(
@@ -10,43 +12,52 @@ openai_api_key = st.secrets["OPENAI_API_KEY"]
 if not openai_api_key:
     st.info("Please add your OpenAI API key in the environment", icon="🗝️")
 else:
+    # create an OpenAI client
     client = OpenAI(api_key=openai_api_key)
+    
+    # create vectorstore for files
+    vectorstore = client.vector_stores.create(name="vector-store")
 
-    # Create a session state variable to store the chat messages.
-    if "messages" not in st.session_state:
-        st.session_state.messages = [
-            {
-                "role": "system",
-                "content": "You are a helpful assistant that speaks like Shakespeare.",
-            }
-        ]
+    file_paths = []
+    file_streams = []
+    
+    file_batch = client.vector_stores.file_batches.upload_and_poll(
+        vectorstore_id=vectorstore.id,
+    )
+
+    # create assistant  with this tool
+    assistant = client.beta.assistants.create(
+        name="Shakespeare Assistant",
+        description="A chatbot that can answer questions about computer science.",
+        model="gpt-4o",
+        tools=[{"type": "file_search"}],
+        tool_resources=[{"type": "file_search", "vectorstore_id": vectorstore.id}],
+    )
+
+    thread = client.beta.threads.create()
 
     # Display the existing chat messages via `st.chat_message`.
-    for message in st.session_state.messages:
-        if message["role"] == "system": # skip system prompts
-            continue
+    for message in client.beta.threads.messages.list(thread_id=thread.id):
+        print(message)
+        with st.chat_message(message.role):
+            st.markdown(message.content)
 
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
-
+    # interact with user prompts
     if prompt := st.chat_input("How can I help you today?"):
 
         # Store and display the current prompt.
-        st.session_state.messages.append({"role": "user", "content": prompt})
+        client.beta.threads.messages.create(
+            thread_id=thread.id,
+            role="user",
+            content=prompt,
+        )
         with st.chat_message("user"):
             st.markdown(prompt)
 
-        # Generate a response using the OpenAI API.
-        stream = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": m["role"], "content": m["content"]}
-                for m in st.session_state.messages
-            ],
-            stream=True,
+        # call openai and stream response and store the result
+        run = client.beta.threads.runs.create(
+            thread_id=thread.id,
+            assistant_id=assistant.id,
         )
-
-        # Stream the response to the chat using `st.write_stream`, and store in session
         with st.chat_message("assistant"):
-            response = st.write_stream(stream)
-        st.session_state.messages.append({"role": "assistant", "content": response})
+            st.markdown(run["content"])
