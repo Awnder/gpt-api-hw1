@@ -1,6 +1,6 @@
-# 💬 Shakespearian Chatbot
+# 💬 Lu'au Planner Chatbot
 
-A chatbot that talks in old english reminiscent of Shakespeare, using GPT-4o-mini.  
+A chatbot that uses OpenAI Assistants API with Lu'au files to help plan CUI's Lu'au, using GPT-4o-mini.  
 
 [![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://chatbot-n6rjsvu07ek.streamlit.app/)
 
